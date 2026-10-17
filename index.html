@@ -222,6 +222,12 @@
         <span class="w-10 h-10 rounded-full border-4 border-amber-400 flex items-center justify-center text-red-500 font-black text-xl">◯</span>
     </button>
 
+    <!-- MORTAL KOMBAT / GOW CENTER ANNOUNCER BANNER -->
+    <div id="mk-announcer-banner" class="fixed inset-x-0 top-1/3 -translate-y-1/2 z-30 pointer-events-none hidden flex-col items-center justify-center text-center px-4">
+        <span id="mk-announcer-sub" class="font-mythic font-bold text-xs sm:text-sm text-amber-300 tracking-[0.35em] uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.95)]">ROUND 1</span>
+        <h2 id="mk-announcer-main" class="font-mythic font-black text-4xl sm:text-6xl text-red-500 chaos-title-glow tracking-wider uppercase scale-110 transition-transform duration-200">FIGHT!</h2>
+    </div>
+
     <!-- CINEMATIC QTE / FATALITY MODAL OVERLAY -->
     <div id="cinematic-qte-overlay" class="fixed inset-0 z-30 pointer-events-none hidden items-center justify-center">
         <div class="fixed top-0 left-0 right-0 h-14 sm:h-20 bg-black/95 z-20 flex items-center justify-center border-b border-red-600/50">
@@ -272,6 +278,9 @@
                     <span id="hud-orbs-count" class="font-mythic font-black text-base sm:text-xl text-red-500 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">1850</span>
                     <span id="hud-level" class="px-1.5 py-0.5 rounded bg-black/75 border border-amber-500/40 text-[9px] font-bold text-amber-300">NV 1</span>
                     <span id="hud-hero-name" class="text-[11px] font-mythic font-black text-amber-300 ml-1 tracking-wider uppercase drop-shadow">DRAKROS</span>
+                    <button onclick="upgradeHeroWithOrbs()" class="pointer-events-auto ml-1 px-2 py-0.5 rounded-md bg-gradient-to-r from-red-700 to-amber-600 hover:from-red-600 hover:to-amber-500 border border-amber-300 text-[9px] font-black text-white uppercase shadow-md active:scale-95 transition" title="Gastar 500 Orbes Vermelhos para Evoluir Nível e Dano">
+                        <i class="fa-solid fa-arrow-up mr-0.5"></i> Evoluir (500)
+                    </button>
                 </div>
             </div>
 
@@ -610,6 +619,81 @@
         let soundEnabled = true;
         let audioReady = false;
         let whipSynth, boomSynth, metalSynth, orbSynth;
+        let screenShakeIntensity = 0;
+
+        function triggerScreenShake(amount = 0.45) {
+            screenShakeIntensity = Math.max(screenShakeIntensity, amount);
+        }
+
+        function triggerScreenFlash(color = 'rgba(239, 68, 68, 0.42)') {
+            const flash = document.getElementById('screen-flash');
+            if (!flash) return;
+            flash.style.backgroundColor = color;
+            flash.style.opacity = '1';
+            setTimeout(() => { flash.style.opacity = '0'; }, 180);
+        }
+
+        let announcerTimeout = null;
+        function showMKAnnouncer(mainText, subText = 'ARENA MORTAL') {
+            const banner = document.getElementById('mk-announcer-banner');
+            const mainEl = document.getElementById('mk-announcer-main');
+            const subEl = document.getElementById('mk-announcer-sub');
+            if (!banner || !mainEl || !subEl) return;
+            subEl.textContent = subText;
+            mainEl.textContent = mainText;
+            banner.classList.remove('hidden');
+            banner.classList.add('flex');
+            if (announcerTimeout) clearTimeout(announcerTimeout);
+            announcerTimeout = setTimeout(() => {
+                banner.classList.add('hidden');
+                banner.classList.remove('flex');
+            }, 1900);
+        }
+
+        function spawnFloatingDamage(worldX, worldY, worldZ, text, colorHex = '#fde047', isBig = false) {
+            if (!camera) return;
+            const layer = document.getElementById('damage-layer');
+            if (!layer) return;
+            const vec = new THREE.Vector3(worldX, worldY, worldZ);
+            vec.project(camera);
+            if (vec.z > 1) return;
+            const sx = (vec.x * 0.5 + 0.5) * window.innerWidth;
+            const sy = (-(vec.y * 0.5) + 0.5) * window.innerHeight;
+
+            const el = document.createElement('div');
+            el.className = 'damage-popup font-mythic ' + (isBig ? 'text-xl sm:text-3xl' : 'text-sm sm:text-lg');
+            el.style.left = `${sx + (Math.random() - 0.5) * 28}px`;
+            el.style.top = `${sy + (Math.random() - 0.5) * 18}px`;
+            el.style.color = colorHex;
+            el.textContent = text;
+            layer.appendChild(el);
+            setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 850);
+        }
+
+        function upgradeHeroWithOrbs() {
+            const cost = 500;
+            if (player.orbs < cost) {
+                showToast(`🔴 Orbes insuficientes! Precisa de ${cost} Orbes Vermelhos.`, 'fa-circle-exclamation text-red-400');
+                return;
+            }
+            player.orbs -= cost;
+            player.level += 1;
+            player.maxHp += 25;
+            player.hp = player.maxHp;
+            player.energy = player.maxEnergy;
+
+            document.getElementById('hud-orbs-count').textContent = player.orbs;
+            document.getElementById('hud-level').textContent = 'NV ' + player.level;
+            document.getElementById('hud-hp-bar').style.width = '100%';
+            document.getElementById('hud-energy-bar').style.width = '100%';
+
+            initAudioEngine();
+            playSound('ultimate');
+            triggerScreenFlash('rgba(251, 191, 36, 0.45)');
+            triggerScreenShake(0.5);
+            spawnFloatingDamage(player.x, 3.8, player.z, `NÍVEL ${player.level}! PODER +25%`, '#fde047', true);
+            showToast(`⚡ PODER DIVINO EVOLUÍDO PARA O NÍVEL ${player.level}!`, 'fa-dragon text-amber-300');
+        }
 
         async function initAudioEngine() {
             if (audioReady || typeof Tone === 'undefined') return;
@@ -714,6 +798,7 @@
             menu.classList.remove('flex');
             initAudioEngine();
             const heroCfg = HERO_ROSTER[selectedHeroKey];
+            showMKAnnouncer('FIGHT!', `${heroCfg.name} VS TITÃ DE ROCHA`);
             showToast(`🔥 FIGHT! ${heroCfg.name} entrou no Ringue Mortal!`, 'fa-dragon text-amber-400');
         }
 
@@ -1237,12 +1322,66 @@
         let activeBoss = null;
         const flyingOrbs = [];
         const slashEffects = [];
+        const hitSparks = [];
+        const shockwaveRings = [];
+        const chainWhipLines = [];
+        let bossTelegraphMesh = null;
 
         const qteState = {
             active: false,
             stage: 'none',
             timer: 0
         };
+
+        function spawnHitSparks3D(x, y, z, colorHex = 0xf97316, count = 12) {
+            const geo = new THREE.BoxGeometry(0.24, 0.24, 0.24);
+            for (let i = 0; i < count; i++) {
+                const mat = new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? colorHex : 0xfef08a });
+                const m = new THREE.Mesh(geo, mat);
+                m.position.set(x, y + Math.random() * 1.2, z);
+                scene.add(m);
+                hitSparks.push({
+                    mesh: m,
+                    vx: (Math.random() - 0.5) * 16,
+                    vy: 4 + Math.random() * 10,
+                    vz: (Math.random() - 0.5) * 16,
+                    age: 0
+                });
+            }
+        }
+
+        function spawnGroundShockwave(x, z, colorHex = 0xef4444, maxScale = 9.0) {
+            const geo = new THREE.RingGeometry(0.6, 1.35, 32);
+            const mat = new THREE.MeshBasicMaterial({
+                color: colorHex,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.92
+            });
+            const ring = new THREE.Mesh(geo, mat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.set(x, 0.18, z);
+            scene.add(ring);
+            shockwaveRings.push({ mesh: ring, age: 0, maxScale });
+        }
+
+        function spawnChainWhip3D(startX, startY, startZ, endX, endY, endZ, colorHex = 0xf97316) {
+            const points = [];
+            const segments = 8;
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments;
+                const px = startX + (endX - startX) * t + (Math.random() - 0.5) * 0.45;
+                const py = startY + (endY - startY) * t + Math.sin(t * Math.PI) * 1.15;
+                const pz = startZ + (endZ - startZ) * t + (Math.random() - 0.5) * 0.45;
+                points.push(new THREE.Vector3(px, py, pz));
+            }
+            const curve = new THREE.CatmullRomCurve3(points);
+            const tubeGeo = new THREE.TubeGeometry(curve, 12, 0.11, 6, false);
+            const tubeMat = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95 });
+            const mesh = new THREE.Mesh(tubeGeo, tubeMat);
+            scene.add(mesh);
+            chainWhipLines.push({ mesh, age: 0 });
+        }
 
         const ringTextureCache = {};
 
@@ -1513,17 +1652,29 @@
             heroBodyGroup = new THREE.Group();
             heroGroup.add(heroBodyGroup);
 
-            const skinMat = new THREE.MeshStandardMaterial({ color: cfg.skinColor, roughness: 0.5 });
-            const armorMat = new THREE.MeshStandardMaterial({ color: cfg.armorColor, roughness: 0.4, metalness: 0.3 });
-            const trimMat = new THREE.MeshStandardMaterial({ color: cfg.trimColor, roughness: 0.25, metalness: 0.85 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: cfg.skinColor, roughness: 0.42 });
+            const armorMat = new THREE.MeshStandardMaterial({ color: cfg.armorColor, roughness: 0.35, metalness: 0.35 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: cfg.trimColor, roughness: 0.22, metalness: 0.88 });
+            const eyeGlowMat = new THREE.MeshBasicMaterial({ color: cfg.bladeGlow });
+
+            // Hero Ground Aura Circle
+            const auraGeo = new THREE.RingGeometry(0.85, 1.25, 24);
+            const auraMat = new THREE.MeshBasicMaterial({ color: cfg.bladeGlow, side: THREE.DoubleSide, transparent: true, opacity: 0.45 });
+            const auraRing = new THREE.Mesh(auraGeo, auraMat);
+            auraRing.rotation.x = -Math.PI / 2;
+            auraRing.position.y = 0.08;
+            heroGroup.add(auraRing);
 
             function buildHeroLeg(isLeft) {
                 const pivot = new THREE.Group();
-                pivot.position.set(isLeft ? -0.34 : 0.34, 1.15, 0);
-                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.2, 0.55, 10), skinMat);
+                pivot.position.set(isLeft ? -0.35 : 0.35, 1.15, 0);
+                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.21, 0.56, 10), skinMat);
                 thigh.position.y = -0.25;
                 pivot.add(thigh);
-                const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.17, 0.65, 10), trimMat);
+                const kneePad = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), trimMat);
+                kneePad.position.set(0, -0.52, 0.08);
+                pivot.add(kneePad);
+                const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.18, 0.65, 10), trimMat);
                 shin.position.y = -0.82;
                 pivot.add(shin);
                 return pivot;
@@ -1535,59 +1686,74 @@
 
             const kiltGroup = new THREE.Group();
             kiltGroup.position.y = 1.22;
-            kiltGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.68, 0.65, 12), armorMat));
-            const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.53, 0.53, 0.2, 12), trimMat);
+            kiltGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.72, 0.68, 12), armorMat));
+            const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.56, 0.22, 12), trimMat);
             belt.position.y = 0.28;
             kiltGroup.add(belt);
             heroBodyGroup.add(kiltGroup);
 
-            // Muscular Torso
-            const upperChest = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.54, 0.78, 12), skinMat);
+            // Muscular Torso & Chest Pectorals
+            const upperChest = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.55, 0.82, 12), skinMat);
             upperChest.position.y = 2.32;
-            upperChest.scale.set(1.18, 1, 0.85);
+            upperChest.scale.set(1.22, 1, 0.88);
             heroBodyGroup.add(upperChest);
 
+            [-0.3, 0.3].forEach((px) => {
+                const pec = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.36, 0.28), skinMat);
+                pec.position.set(px, 2.45, 0.35);
+                heroBodyGroup.add(pec);
+            });
+
             // Shoulder Pauldrons (Hercules / God Armor style)
-            [-0.85, 0.85].forEach((sx) => {
-                const pauldron = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 10), trimMat);
-                pauldron.position.set(sx, 2.58, 0);
-                pauldron.scale.set(1.1, 0.75, 1.1);
+            [-0.88, 0.88].forEach((sx) => {
+                const pauldron = new THREE.Mesh(new THREE.SphereGeometry(0.38, 10, 10), trimMat);
+                pauldron.position.set(sx, 2.6, 0);
+                pauldron.scale.set(1.15, 0.78, 1.15);
                 heroBodyGroup.add(pauldron);
             });
 
-            const tattooBack = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.25, 0.7), armorMat);
+            const tattooBack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.25, 0.74), armorMat);
             tattooBack.position.set(-0.22, 2.15, -0.02);
             tattooBack.rotation.z = 0.28;
             heroBodyGroup.add(tattooBack);
 
             const headGroup = new THREE.Group();
-            headGroup.position.y = 3.08;
-            headGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.39, 14, 14), skinMat));
+            headGroup.position.y = 3.1;
+            headGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 14), skinMat));
+
+            // Glowing God Eyes & Spartan Beard
+            [-0.14, 0.14].forEach((ex) => {
+                const eye = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.05, 0.08), eyeGlowMat);
+                eye.position.set(ex, 0.06, 0.36);
+                headGroup.add(eye);
+            });
+            const beard = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.38, 6), new THREE.MeshStandardMaterial({ color: 0x18181b }));
+            beard.rotation.x = Math.PI;
+            beard.position.set(0, -0.25, 0.25);
+            headGroup.add(beard);
 
             if (selectedHeroKey === 'raiden') {
-                // Raiden Straw/Lightning Hat
-                const hat = new THREE.Mesh(new THREE.ConeGeometry(0.95, 0.38, 16), trimMat);
-                hat.position.y = 0.34;
+                const hat = new THREE.Mesh(new THREE.ConeGeometry(1.05, 0.4, 18), trimMat);
+                hat.position.y = 0.35;
                 headGroup.add(hat);
             } else if (selectedHeroKey === 'hercules') {
-                // Hercules Nemean Lion Crest
-                const crest = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.5, 0.65), trimMat);
-                crest.position.set(0, 0.36, 0);
+                const crest = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.55, 0.72), trimMat);
+                crest.position.set(0, 0.38, 0);
                 headGroup.add(crest);
             } else {
-                const headTattoo = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.62, 0.68), armorMat);
+                const headTattoo = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.62, 0.7), armorMat);
                 headTattoo.position.set(-0.14, 0.06, 0.04);
                 headGroup.add(headTattoo);
             }
             heroBodyGroup.add(headGroup);
 
             leftBladePivot = new THREE.Group();
-            leftBladePivot.position.set(-0.84, 2.38, 0);
+            leftBladePivot.position.set(-0.86, 2.38, 0);
             leftBladePivot.add(buildDetailedArmAndWeapon(true, skinMat, trimMat, cfg));
             heroBodyGroup.add(leftBladePivot);
 
             rightBladePivot = new THREE.Group();
-            rightBladePivot.position.set(0.84, 2.38, 0);
+            rightBladePivot.position.set(0.86, 2.38, 0);
             rightBladePivot.add(buildDetailedArmAndWeapon(false, skinMat, trimMat, cfg));
             heroBodyGroup.add(rightBladePivot);
 
@@ -1598,11 +1764,11 @@
         function buildDetailedArmAndWeapon(isLeft, skinMat, trimMat, cfg) {
             const armGroup = new THREE.Group();
             const sideDir = isLeft ? -1 : 1;
-            const bicep = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.17, 0.55, 8), skinMat);
+            const bicep = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.18, 0.56, 8), skinMat);
             bicep.position.set(sideDir * 0.12, -0.26, 0.05);
             armGroup.add(bicep);
 
-            const bracer = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.16, 0.55, 8), trimMat);
+            const bracer = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.56, 8), trimMat);
             bracer.position.set(sideDir * 0.24, -0.65, 0.25);
             armGroup.add(bracer);
 
@@ -1612,23 +1778,30 @@
             const bladeCoreMat = new THREE.MeshStandardMaterial({
                 color: 0xfffbeb,
                 emissive: cfg.bladeGlow,
-                emissiveIntensity: 1.6,
-                roughness: 0.15
+                emissiveIntensity: 1.9,
+                roughness: 0.12
             });
 
             if (selectedHeroKey === 'hercules') {
-                // Giant Nemean Cestus (Lion Gauntlets)
-                const cestus = new THREE.Mesh(new THREE.DodecahedronGeometry(0.48, 0), trimMat);
+                const cestus = new THREE.Mesh(new THREE.DodecahedronGeometry(0.52, 0), trimMat);
                 cestus.position.set(0, 0, 0.35);
                 weaponHolder.add(cestus);
-                const glowFist = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.65), bladeCoreMat);
-                glowFist.position.set(0, 0, 0.5);
+                const glowFist = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.48, 0.7), bladeCoreMat);
+                glowFist.position.set(0, 0, 0.52);
                 weaponHolder.add(glowFist);
             } else {
-                // Chaos Blades / Lightning Swords / Scorpion Kunai Blades
-                const bladeMain = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.48, 2.1), bladeCoreMat);
-                bladeMain.position.set(0, 0.04, 1.15);
+                const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.45, 8), trimMat);
+                hilt.rotation.x = Math.PI / 2;
+                weaponHolder.add(hilt);
+
+                const bladeMain = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.52, 2.25), bladeCoreMat);
+                bladeMain.position.set(0, 0.04, 1.2);
                 weaponHolder.add(bladeMain);
+
+                const hook = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.55, 4), bladeCoreMat);
+                hook.rotation.x = Math.PI / 2;
+                hook.position.set(0, 0.26, 1.95);
+                weaponHolder.add(hook);
             }
 
             armGroup.add(weaponHolder);
@@ -1713,47 +1886,70 @@
 
         function createRockMinotaurBossMesh() {
             const bossGroup = new THREE.Group();
-            const rockMat = new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.9, flatShading: true });
-            const obsidianMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, emissive: 0x991b1b, emissiveIntensity: 0.55, flatShading: true });
-            const hornMat = new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xea580c, emissiveIntensity: 0.8 });
+            const rockMat = new THREE.MeshStandardMaterial({ color: 0x57534e, roughness: 0.88, flatShading: true });
+            const obsidianMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, emissive: 0x991b1b, emissiveIntensity: 0.7, flatShading: true });
+            const magmaCoreMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+            const hornMat = new THREE.MeshStandardMaterial({ color: 0xf97316, emissive: 0xea580c, emissiveIntensity: 0.95 });
 
             [-2.2, 2.2].forEach((xPos) => {
-                const leg = new THREE.Mesh(new THREE.DodecahedronGeometry(1.45, 0), rockMat);
+                const leg = new THREE.Mesh(new THREE.DodecahedronGeometry(1.5, 0), rockMat);
                 leg.position.set(xPos, 2.2, 0);
                 bossGroup.add(leg);
             });
 
-            const torso = new THREE.Mesh(new THREE.DodecahedronGeometry(3.05, 0), obsidianMat);
+            const torso = new THREE.Mesh(new THREE.DodecahedronGeometry(3.15, 0), obsidianMat);
             torso.position.set(0, 5.2, 0);
             bossGroup.add(torso);
 
-            // Muscular Boss Arms
-            [-3.4, 3.4].forEach((xPos) => {
-                const arm = new THREE.Mesh(new THREE.DodecahedronGeometry(1.5, 0), rockMat);
-                arm.position.set(xPos, 4.8, 0.8);
-                bossGroup.add(arm);
-            });
+            // Glowing Magma Chest Core
+            const magmaHeart = new THREE.Mesh(new THREE.OctahedronGeometry(1.35, 0), magmaCoreMat);
+            magmaHeart.position.set(0, 5.1, 2.15);
+            bossGroup.add(magmaHeart);
+
+            // Articulated Muscular Boss Arms for Smash Animation
+            const leftArmPivot = new THREE.Group();
+            leftArmPivot.position.set(-3.4, 5.4, 0.6);
+            const leftArmMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.6, 0), rockMat);
+            leftArmMesh.position.set(0, -0.9, 0.4);
+            leftArmPivot.add(leftArmMesh);
+            bossGroup.add(leftArmPivot);
+
+            const rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(3.4, 5.4, 0.6);
+            const rightArmMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.6, 0), rockMat);
+            rightArmMesh.position.set(0, -0.9, 0.4);
+            rightArmPivot.add(rightArmMesh);
+            bossGroup.add(rightArmPivot);
 
             const head = new THREE.Group();
             head.position.set(0, 6.6, 2.35);
-            head.add(new THREE.Mesh(new THREE.DodecahedronGeometry(1.45, 0), obsidianMat));
+            head.add(new THREE.Mesh(new THREE.DodecahedronGeometry(1.48, 0), obsidianMat));
+
+            // Glowing Red Minotaur Eyes
+            [-0.48, 0.48].forEach((ex) => {
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), magmaCoreMat);
+                eye.position.set(ex, 0.25, 1.2);
+                head.add(eye);
+            });
 
             // Bull Horns
-            [-1.3, 1.3].forEach((hx) => {
-                const horn = new THREE.Mesh(new THREE.ConeGeometry(0.42, 2.2, 6), hornMat);
-                horn.position.set(hx, 0.6, 0.2);
+            [-1.35, 1.35].forEach((hx) => {
+                const horn = new THREE.Mesh(new THREE.ConeGeometry(0.45, 2.35, 6), hornMat);
+                horn.position.set(hx, 0.65, 0.25);
                 horn.rotation.z = hx > 0 ? -0.85 : 0.85;
                 head.add(horn);
             });
 
             bossGroup.add(head);
-            bossGroup.userData = { headGroup: head };
+            bossGroup.userData = { headGroup: head, leftArmPivot, rightArmPivot, magmaHeart };
             return bossGroup;
         }
 
         function summonGiantBossNow(silent = false) {
             if (activeBoss) {
                 activeBoss.hp = activeBoss.maxHp;
+                activeBoss.staggered = false;
+                activeBoss.nextStaggerThreshold = 1000;
                 updateBossHUD();
                 if (!silent) showToast('🔥 Minotauro Titã restaurado!', 'fa-skull text-amber-400');
                 return;
@@ -1763,9 +1959,23 @@
             bossMesh.position.set(0, 0, -11);
             scene.add(bossMesh);
 
+            if (!bossTelegraphMesh) {
+                const teleGeo = new THREE.RingGeometry(0.8, 7.5, 32);
+                const teleMat = new THREE.MeshBasicMaterial({
+                    color: 0xef4444,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.0
+                });
+                bossTelegraphMesh = new THREE.Mesh(teleGeo, teleMat);
+                bossTelegraphMesh.rotation.x = -Math.PI / 2;
+                bossTelegraphMesh.position.y = 0.12;
+                scene.add(bossTelegraphMesh);
+            }
+
             const bossObj = {
                 mesh: bossMesh,
-                name: 'MINOTAURO TITÃ DE ROCHA',
+                name: RING_THEMES[currentActiveRingKey] ? RING_THEMES[currentActiveRingKey].bossTitle : 'MINOTAURO TITÃ DE ROCHA',
                 x: 0,
                 z: -11,
                 hp: 1500,
@@ -1775,7 +1985,9 @@
                 radius: 4.2,
                 isBoss: true,
                 staggered: false,
-                nextStaggerThreshold: 1000
+                nextStaggerThreshold: 1000,
+                smashCooldown: 4.2,
+                smashWindup: 0
             };
 
             enemies.push(bossObj);
@@ -1863,14 +2075,21 @@
             if (e) e.preventDefault();
             if (!qteState.active || !activeBoss) return;
             playSound('slam');
+            triggerScreenShake(0.65);
 
             if (qteState.stage === 'step1_square') {
                 qteState.stage = 'step2_triangle';
+                spawnChainWhip3D(player.x, 2.4, player.z, activeBoss.x, 5.5, activeBoss.z, 0xf97316);
+                spawnHitSparks3D(activeBoss.x, 5.0, activeBoss.z, 0xf97316, 18);
                 renderQTESymbol('triangle');
             } else {
                 activeBoss.staggered = false;
+                triggerScreenFlash('rgba(239, 68, 68, 0.55)');
+                spawnGroundShockwave(activeBoss.x, activeBoss.z, 0xfbbf24, 14.0);
+                spawnHitSparks3D(activeBoss.x, 5.5, activeBoss.z, 0xef4444, 26);
                 damageEnemy(activeBoss, enemies.indexOf(activeBoss), 550, '#fde047');
-                spawnOrbFountain(activeBoss.x, 4.0, activeBoss.z, 22);
+                spawnOrbFountain(activeBoss.x, 4.0, activeBoss.z, 24);
+                showMKAnnouncer('BRUTAL EXECUTION!', 'GOLPE FINALIZADOR');
                 endCinematicQTE();
             }
         }
@@ -1891,19 +2110,30 @@
 
             const cfg = HERO_ROSTER[selectedHeroKey] || HERO_ROSTER.drakros;
             player.comboStep = (player.comboStep + 1) % 3;
-            player.attackAnim = 0.28;
+            player.attackAnim = 0.3;
 
+            const isFinisher = player.comboStep === 0;
             const forwardX = Math.sin(player.angle);
             const forwardZ = Math.cos(player.angle);
-            const impactX = player.x + forwardX * 3.8;
-            const impactZ = player.z + forwardZ * 3.8;
+            const reach = isFinisher ? 5.2 : 3.9;
+            const impactX = player.x + forwardX * reach;
+            const impactZ = player.z + forwardZ * reach;
 
             spawnSlashArcVisual(player.x, player.z, player.angle, cfg.bladeGlow);
+            spawnChainWhip3D(player.x - 0.6, 2.2, player.z, impactX - 1.1, 1.5, impactZ, cfg.bladeGlow);
+            spawnChainWhip3D(player.x + 0.6, 2.2, player.z, impactX + 1.1, 1.5, impactZ, cfg.bladeGlow);
 
+            if (isFinisher) {
+                playSound('slam');
+                triggerScreenShake(0.38);
+                spawnGroundShockwave(impactX, impactZ, cfg.bladeGlow, 7.5);
+            }
+
+            const baseDmg = (isFinisher ? 82 : 48) + player.level * 14;
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const en = enemies[i];
-                if (Math.hypot(en.x - impactX, en.z - impactZ) <= 5.2 + en.radius) {
-                    damageEnemy(en, i, 48 + player.level * 10, cfg.slashColor);
+                if (Math.hypot(en.x - impactX, en.z - impactZ) <= 5.6 + en.radius) {
+                    damageEnemy(en, i, baseDmg, cfg.slashColor);
                 }
             }
         }
@@ -1912,9 +2142,12 @@
             if (e) e.preventDefault();
             if (player.rollTimer > 0 || qteState.active) return;
             player.rollTimer = 0.36;
-            player.invulnTimer = 0.55;
-            player.x += Math.sin(player.angle) * 3.5;
-            player.z += Math.cos(player.angle) * 3.5;
+            player.invulnTimer = 0.6;
+            const nx = player.x + Math.sin(player.angle) * 4.2;
+            const nz = player.z + Math.cos(player.angle) * 4.2;
+            player.x = Math.max(-18.5, Math.min(18.5, nx));
+            player.z = Math.max(-6.5, Math.min(20.0, nz));
+            spawnGroundShockwave(player.x, player.z, 0xfbbf24, 3.5);
         }
 
         function triggerChaosNova(e) {
@@ -1923,15 +2156,17 @@
             initAudioEngine();
             playSound('slam');
             player.cdNova = 3.0;
-            player.attackAnim = 0.35;
+            player.attackAnim = 0.38;
 
             const cfg = HERO_ROSTER[selectedHeroKey] || HERO_ROSTER.drakros;
+            triggerScreenShake(0.5);
             spawnSlashArcVisual(player.x, player.z, 0, cfg.bladeGlow);
+            spawnGroundShockwave(player.x, player.z, cfg.bladeGlow, 11.0);
 
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const en = enemies[i];
-                if (Math.hypot(en.x - player.x, en.z - player.z) <= 9.5) {
-                    damageEnemy(en, i, 130, '#fde047');
+                if (Math.hypot(en.x - player.x, en.z - player.z) <= 10.0) {
+                    damageEnemy(en, i, 145 + player.level * 18, '#fde047');
                 }
             }
         }
@@ -1942,12 +2177,18 @@
             initAudioEngine();
             playSound('ultimate');
             player.cdUlt = 6.5;
+            player.attackAnim = 0.45;
 
             const cfg = HERO_ROSTER[selectedHeroKey] || HERO_ROSTER.drakros;
+            triggerScreenFlash('rgba(249, 115, 22, 0.45)');
+            triggerScreenShake(0.8);
+            spawnGroundShockwave(player.x, player.z, 0xef4444, 18.0);
+
             for (let i = enemies.length - 1; i >= 0; i--) {
                 const en = enemies[i];
-                damageEnemy(en, i, 280, '#ef4444');
+                damageEnemy(en, i, 290 + player.level * 25, '#ef4444');
             }
+            showMKAnnouncer('PODER DIVINO!', cfg.name);
             showToast(cfg.ultMessage, 'fa-bolt text-amber-300');
         }
 
@@ -1956,6 +2197,11 @@
             en.hp -= amount;
             player.combo++;
             player.comboTimer = 3.8;
+            player.energy = Math.min(player.maxEnergy, player.energy + 6);
+            document.getElementById('hud-energy-bar').style.width = `${(player.energy / player.maxEnergy) * 100}%`;
+
+            spawnHitSparks3D(en.x, en.isBoss ? 4.2 : 1.5, en.z, 0xf97316, en.isBoss ? 10 : 6);
+            spawnFloatingDamage(en.x, en.isBoss ? 6.2 : 2.3, en.z, `-${Math.round(amount)}`, colorHex, amount >= 120);
 
             const container = document.getElementById('combo-hud-container');
             container.classList.remove('hidden');
@@ -1975,15 +2221,20 @@
             }
 
             if (en.hp <= 0) {
-                spawnOrbFountain(en.x, 2.2, en.z, en.isBoss ? 22 : 5);
+                spawnHitSparks3D(en.x, 2.5, en.z, 0xef4444, en.isBoss ? 28 : 12);
+                spawnOrbFountain(en.x, 2.2, en.z, en.isBoss ? 25 : 6);
                 scene.remove(en.mesh);
                 enemies.splice(index, 1);
                 player.kills++;
 
                 if (en.isBoss) {
                     activeBoss = null;
+                    if (bossTelegraphMesh) bossTelegraphMesh.material.opacity = 0;
                     document.getElementById('btn-qte-grab').classList.add('hidden');
                     document.getElementById('world-qte-circle').classList.add('hidden');
+                    triggerScreenFlash('rgba(251, 191, 36, 0.55)');
+                    triggerScreenShake(0.95);
+                    showMKAnnouncer('FATALITY!', 'TITÃ DESTRUÍDO');
                     showToast('🏆 FATALITY! MINOTAURO TITÃ DESTRUÍDO!', 'fa-crown text-amber-400');
                     setTimeout(() => summonGiantBossNow(true), 3500);
                 } else {
@@ -2059,8 +2310,33 @@
 
             if (player.rollTimer > 0) player.rollTimer -= dt;
             if (player.invulnTimer > 0) player.invulnTimer -= dt;
-            if (player.cdNova > 0) player.cdNova -= dt;
-            if (player.cdUlt > 0) player.cdUlt -= dt;
+
+            // Update Skill Cooldowns & HUD Badges
+            const cdNovaEl = document.getElementById('cd-nova');
+            if (player.cdNova > 0) {
+                player.cdNova -= dt;
+                if (cdNovaEl) {
+                    cdNovaEl.classList.remove('hidden');
+                    cdNovaEl.classList.add('flex');
+                    cdNovaEl.textContent = player.cdNova.toFixed(1) + 's';
+                }
+            } else if (cdNovaEl && !cdNovaEl.classList.contains('hidden')) {
+                cdNovaEl.classList.add('hidden');
+                cdNovaEl.classList.remove('flex');
+            }
+
+            const cdUltEl = document.getElementById('cd-ult');
+            if (player.cdUlt > 0) {
+                player.cdUlt -= dt;
+                if (cdUltEl) {
+                    cdUltEl.classList.remove('hidden');
+                    cdUltEl.classList.add('flex');
+                    cdUltEl.textContent = Math.ceil(player.cdUlt) + 's';
+                }
+            } else if (cdUltEl && !cdUltEl.classList.contains('hidden')) {
+                cdUltEl.classList.add('hidden');
+                cdUltEl.classList.remove('flex');
+            }
 
             if (player.comboTimer > 0) {
                 player.comboTimer -= dt;
@@ -2089,22 +2365,33 @@
                 }
                 player.x = Math.max(-18.5, Math.min(18.5, player.x));
                 player.z = Math.max(-6.5, Math.min(20.0, player.z));
+            } else if (activeBoss) {
+                // Float hero up during cinematic QTE finisher
+                player.y = qteState.stage === 'step2_triangle' ? 4.2 : 1.5;
             }
 
             if (heroGroup) {
                 heroGroup.position.set(player.x, player.y, player.z);
                 heroGroup.rotation.y = player.angle;
+                if (heroBodyGroup) {
+                    heroBodyGroup.rotation.x = player.rollTimer > 0 ? (player.rollTimer / 0.36) * Math.PI * 2 : 0;
+                }
 
                 // Leg run animation & arm swing
                 if (isMoving && leftLegPivot && rightLegPivot) {
-                    leftLegPivot.rotation.x = Math.sin(elapsedTime * 14) * 0.55;
-                    rightLegPivot.rotation.x = -Math.sin(elapsedTime * 14) * 0.55;
+                    leftLegPivot.rotation.x = Math.sin(elapsedTime * 15) * 0.6;
+                    rightLegPivot.rotation.x = -Math.sin(elapsedTime * 15) * 0.6;
+                } else if (leftLegPivot && rightLegPivot) {
+                    leftLegPivot.rotation.x = 0;
+                    rightLegPivot.rotation.x = 0;
                 }
+
                 if (player.attackAnim > 0) {
                     player.attackAnim -= dt;
                     if (leftBladePivot && rightBladePivot) {
-                        leftBladePivot.rotation.x = -1.35;
-                        rightBladePivot.rotation.x = -1.35;
+                        const swing = Math.sin((player.attackAnim / 0.3) * Math.PI) * -1.65;
+                        leftBladePivot.rotation.x = swing;
+                        rightBladePivot.rotation.x = swing;
                     }
                 } else if (leftBladePivot && rightBladePivot) {
                     leftBladePivot.rotation.x = 0;
@@ -2124,7 +2411,47 @@
                 }
             }
 
-            // AI for Co-Adjuvant Soldiers & Boss
+            // Update 3D Chain Whips
+            for (let i = chainWhipLines.length - 1; i >= 0; i--) {
+                const c = chainWhipLines[i];
+                c.age += dt;
+                c.mesh.material.opacity = Math.max(0, 0.95 - c.age * 7.5);
+                if (c.age > 0.13) {
+                    scene.remove(c.mesh);
+                    chainWhipLines.splice(i, 1);
+                }
+            }
+
+            // Update Ground Shockwaves
+            for (let i = shockwaveRings.length - 1; i >= 0; i--) {
+                const r = shockwaveRings[i];
+                r.age += dt;
+                const progress = r.age / 0.38;
+                const s = 1 + progress * r.maxScale;
+                r.mesh.scale.set(s, s, 1);
+                r.mesh.material.opacity = Math.max(0, 0.92 * (1 - progress));
+                if (r.age >= 0.38) {
+                    scene.remove(r.mesh);
+                    shockwaveRings.splice(i, 1);
+                }
+            }
+
+            // Update 3D Hit Sparks
+            for (let i = hitSparks.length - 1; i >= 0; i--) {
+                const sp = hitSparks[i];
+                sp.age += dt;
+                sp.mesh.position.x += sp.vx * dt;
+                sp.mesh.position.y += sp.vy * dt;
+                sp.mesh.position.z += sp.vz * dt;
+                sp.vy -= 28 * dt;
+                sp.mesh.scale.multiplyScalar(0.92);
+                if (sp.age > 0.42 || sp.mesh.position.y < 0) {
+                    scene.remove(sp.mesh);
+                    hitSparks.splice(i, 1);
+                }
+            }
+
+            // AI for Co-Adjuvant Soldiers & Minotaur Boss
             enemies.forEach((en) => {
                 const dx = player.x - en.x;
                 const dz = player.z - en.z;
@@ -2136,22 +2463,75 @@
                         en.z += (dz / dist) * en.speed * dt;
                         en.mesh.position.set(en.x, 0, en.z);
                         en.mesh.rotation.y = Math.atan2(dx, dz);
-                    } else if (player.invulnTimer <= 0) {
+                    } else if (player.invulnTimer <= 0 && !qteState.active) {
                         player.hp = Math.max(15, player.hp - 6 * dt);
                         document.getElementById('hud-hp-bar').style.width = `${(player.hp / player.maxHp) * 100}%`;
                     }
-                } else if (!en.staggered) {
-                    // Minotaur Boss slowly stalks and turns toward player
+                } else if (!en.staggered && !qteState.active) {
+                    // Minotaur Boss AI with Telegraph Ground Smash
                     en.mesh.rotation.y = Math.atan2(dx, dz) * 0.35;
-                    if (dist > 6.5) {
-                        en.x += (dx / dist) * 1.6 * dt;
-                        en.z += (dz / dist) * 1.6 * dt;
-                        en.x = Math.max(-10, Math.min(10, en.x));
-                        en.z = Math.max(-14, Math.min(-3, en.z));
-                        en.mesh.position.set(en.x, 0, en.z);
+                    const ud = en.mesh.userData;
+
+                    if (en.smashWindup > 0) {
+                        en.smashWindup -= dt;
+                        if (ud && ud.leftArmPivot && ud.rightArmPivot) {
+                            ud.leftArmPivot.rotation.x = -2.2;
+                            ud.rightArmPivot.rotation.x = -2.2;
+                        }
+                        if (bossTelegraphMesh) {
+                            bossTelegraphMesh.position.set(en.x, 0.14, en.z + 3.2);
+                            bossTelegraphMesh.material.opacity = 0.35 + Math.sin(elapsedTime * 25) * 0.25;
+                        }
+                        if (en.smashWindup <= 0) {
+                            // Execute Boss Earthquake Slam!
+                            if (bossTelegraphMesh) bossTelegraphMesh.material.opacity = 0;
+                            if (ud && ud.leftArmPivot && ud.rightArmPivot) {
+                                ud.leftArmPivot.rotation.x = 0.5;
+                                ud.rightArmPivot.rotation.x = 0.5;
+                            }
+                            playSound('slam');
+                            triggerScreenShake(0.65);
+                            spawnGroundShockwave(en.x, en.z + 3.2, 0xef4444, 9.5);
+                            const slamDist = Math.hypot(player.x - en.x, player.z - (en.z + 3.2));
+                            if (slamDist <= 7.8 && player.invulnTimer <= 0) {
+                                player.hp = Math.max(10, player.hp - 16);
+                                document.getElementById('hud-hp-bar').style.width = `${(player.hp / player.maxHp) * 100}%`;
+                                triggerScreenFlash('rgba(239, 68, 68, 0.45)');
+                                spawnFloatingDamage(player.x, 3.0, player.z, '-16 IMPACTO!', '#ef4444', true);
+                            }
+                        }
+                    } else {
+                        if (ud && ud.leftArmPivot && ud.rightArmPivot) {
+                            ud.leftArmPivot.rotation.x *= 0.85;
+                            ud.rightArmPivot.rotation.x *= 0.85;
+                        }
+                        en.smashCooldown -= dt;
+                        if (en.smashCooldown <= 0 && dist <= 13.5) {
+                            en.smashWindup = 1.15;
+                            en.smashCooldown = 5.2;
+                        } else if (dist > 6.5) {
+                            en.x += (dx / dist) * 1.65 * dt;
+                            en.z += (dz / dist) * 1.65 * dt;
+                            en.x = Math.max(-10, Math.min(10, en.x));
+                            en.z = Math.max(-14, Math.min(-3, en.z));
+                            en.mesh.position.set(en.x, 0, en.z);
+                        }
                     }
                 }
             });
+
+            // Position Overhead QTE Prompt over Boss in 3D space
+            if (activeBoss && activeBoss.staggered && !qteState.active) {
+                const qteBtn = document.getElementById('world-qte-circle');
+                if (qteBtn && !qteBtn.classList.contains('hidden')) {
+                    const bVec = new THREE.Vector3(activeBoss.x, 8.2, activeBoss.z);
+                    bVec.project(camera);
+                    const bx = (bVec.x * 0.5 + 0.5) * window.innerWidth;
+                    const by = (-(bVec.y * 0.5) + 0.5) * window.innerHeight;
+                    qteBtn.style.left = `${Math.max(40, Math.min(window.innerWidth - 40, bx))}px`;
+                    qteBtn.style.top = `${Math.max(70, Math.min(window.innerHeight - 90, by))}px`;
+                }
+            }
 
             // Update Orbs
             for (let i = flyingOrbs.length - 1; i >= 0; i--) {
@@ -2162,7 +2542,13 @@
                 o.mesh.position.z += o.vz * dt * 0.3;
                 o.vy -= 16 * dt;
 
-                if (Math.hypot(player.x - o.mesh.position.x, player.z - o.mesh.position.z) < 2.4 || o.age > 2.5) {
+                // Magnetic pull toward player after bounce
+                if (o.age > 0.45) {
+                    o.mesh.position.x += (player.x - o.mesh.position.x) * 6.5 * dt;
+                    o.mesh.position.z += (player.z - o.mesh.position.z) * 6.5 * dt;
+                }
+
+                if (Math.hypot(player.x - o.mesh.position.x, player.z - o.mesh.position.z) < 2.5 || o.age > 2.5) {
                     player.orbs += 15;
                     if (o.isHeal) {
                         player.hp = Math.min(player.maxHp, player.hp + 8);
@@ -2174,15 +2560,30 @@
                 }
             }
 
-            // Locked God of War / Mortal Kombat Arena Camera
+            // Locked God of War / Mortal Kombat Arena Camera + Cinematic QTE Zoom + Screen Shake
             const isPortrait = window.innerWidth < window.innerHeight;
             const bossX = activeBoss ? activeBoss.x : 0;
             const bossZ = activeBoss ? activeBoss.z : -11;
-            const camX = player.x * 0.68 + bossX * 0.32;
-            const camY = isPortrait ? 6.6 : 5.3;
-            const camZ = Math.max(player.z + (isPortrait ? 15.2 : 12.2), 12.0);
 
-            camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.14);
+            let targetCamX = player.x * 0.68 + bossX * 0.32;
+            let targetCamY = isPortrait ? 6.6 : 5.3;
+            let targetCamZ = Math.max(player.z + (isPortrait ? 15.2 : 12.2), 12.0);
+
+            if (qteState.active && activeBoss) {
+                targetCamX = activeBoss.x + 3.2;
+                targetCamY = 4.6;
+                targetCamZ = activeBoss.z + 8.5;
+            }
+
+            if (screenShakeIntensity > 0.01) {
+                targetCamX += (Math.random() - 0.5) * screenShakeIntensity;
+                targetCamY += (Math.random() - 0.5) * screenShakeIntensity;
+                screenShakeIntensity *= 0.86;
+            } else {
+                screenShakeIntensity = 0;
+            }
+
+            camera.position.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), 0.14);
             camera.lookAt(player.x * 0.42 + bossX * 0.58, 3.2, player.z * 0.32 + bossZ * 0.68);
 
             renderer.render(scene, camera);
